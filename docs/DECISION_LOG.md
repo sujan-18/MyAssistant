@@ -2,7 +2,7 @@
 
 **Document version:** 1.1  
 **Last updated:** 2026-10-02  
-**Status:** CPython 3.14.8 x64, PySide6 6.11.2, tzdata 2026.4, pytest 9.1.1 and SQLite FTS5 are in use; optional voice packages are installed. ADR-002, ADR-003, ADR-004, ADR-005, ADR-006, ADR-007, ADR-009, ADR-012, ADR-013, ADR-014, ADR-015 and ADR-016 are selected. The suite has 62 passing tests and one symlink skip. The Phase 8 software implementation is complete. Model download, actual microphone capture and audible TTS remain unverified; the Hugging Face endpoint timed out during an HTTP HEAD check on 2026-10-03. `pip check` is clean. See [TECHNOLOGY_EVALUATION.md](TECHNOLOGY_EVALUATION.md) for the original audit and later phase updates.
+**Status:** CPython 3.14.8 x64, PySide6 6.11.2, tzdata 2026.4, pytest 9.1.1, PyInstaller 6.22.3 and SQLite FTS5 are in use; optional voice packages are installed. The suite has 66 passing tests and one host-policy symlink skip; `pip check` is clean. The pinned local model is present, and WAV transcription was verified. Desktop microphone/speaker checks and clean-machine packaging acceptance remain open. See [TECHNOLOGY_EVALUATION.md](TECHNOLOGY_EVALUATION.md) for the original audit and later phase updates.
 
 ## ADR-001 — Build a native Python desktop application
 
@@ -78,10 +78,10 @@
 
 ## ADR-010 — PyInstaller is the first packaging candidate
 
-- **Status:** Proposed
-- **Decision:** Prototype a one-folder PyInstaller build after the application and dependencies stabilize; evaluate a one-file bundle only if distribution needs it. Compare Nuitka on startup, size, reliability and build maintenance before release.
+- **Status:** Selected for a one-folder prototype; clean-machine and installer acceptance remain.
+- **Decision:** Use pinned PyInstaller 6.22.3 to build a one-folder Windows prototype; evaluate a one-file bundle only if distribution needs it. Compare Nuitka on startup, size, reliability and build maintenance before release.
 - **Reason:** PyInstaller has a mature Python application bundling workflow and avoids introducing a compiler toolchain in the default path. Nuitka supports newer Python but requires compiler/build tooling and creates more complex build diagnostics.
-- **Consequences:** Packaging is not implemented. Build on Windows for Windows, pin build dependencies, audit Qt plugins/native libraries, and produce a clean-machine smoke test before declaring a release.
+- **Consequences:** The build extra and `scripts/build_windows.ps1` collect the GUI, local speech runtime and native dependencies. Build on Windows for Windows, audit Qt plugins/native libraries, and produce clean-machine startup/voice checks before declaring a release. User data and speech weights stay outside the bundle.
 
 ## ADR-011 — Keep runtime state out of the source checkout
 
@@ -117,10 +117,10 @@
 ## ADR-015 — Use Qt tray messages and an opt-in Startup-folder script for Phase 7
 
 - **Status:** Selected and implemented; interactive Windows verification remains.
-- **Decision:** Use `QSystemTrayIcon` for launcher access and task reminders; use a hidden per-user Startup-folder VBScript only when `MYASSISTANT_START_WITH_WINDOWS=true`. Use native Win32 `RegisterHotKey` with a configurable `MYASSISTANT_GLOBAL_HOTKEY` (default `Ctrl+Space`).
+- **Decision:** Use `QSystemTrayIcon` for launcher access and task reminders; expose startup as an off-by-default Settings choice with `MYASSISTANT_START_WITH_WINDOWS` as a scripted default. The startup script targets `main.py` in development and the frozen executable in packaged mode. Use native Win32 `RegisterHotKey` with a configurable `MYASSISTANT_GLOBAL_HOTKEY` (default `Ctrl+Alt+M`, chosen to avoid common Ctrl+Space input-method conflicts).
 - **Alternatives:** Global keyboard hooks, registry Run key, Task Scheduler, native actionable toast integration.
 - **Reason:** Qt is already a runtime dependency; `RegisterHotKey` is the narrow OS facility for this behavior; the Startup-folder script is visible and reversible without admin rights. Native toast actions need a packaging identity and are deferred.
-- **Consequences:** A hotkey conflict is logged and leaves the app usable. Reminder delivery checks tray/message availability and persists deduplication only when message delivery can be attempted. Without a tray, closing exits rather than leaving a hidden process. The source-based startup target must be revised for packaged distributions.
+- **Consequences:** A hotkey conflict is logged and leaves the app usable. Reminder delivery checks tray/message availability and persists deduplication only when message delivery can be attempted. Without a tray, closing exits rather than leaving a hidden process. Startup uses the frozen executable path in packaged mode.
 
 ## ADR-016 — Add explicit, local CPU-first speech input and output
 
@@ -128,4 +128,12 @@
 - **Decision:** Use the optional `sounddevice` 0.5.6 package for user-triggered push-to-talk; use faster-whisper 1.2.1/CTranslate2 4.8.2 on CPU int8; offer the multilingual Whisper tiny model at a pinned revision; use installed Windows SAPI voices through optional pywin32 312 for user-triggered TTS.
 - **Alternatives:** whisper.cpp CLI, Vosk, CUDA inference, always-on microphone, cloud STT/TTS, neural TTS.
 - **Reason:** Current Windows/Python 3.14 wheels were installed and imported successfully. This chain has a direct Python API and CPU path, fits the MX330's 2 GB VRAM limitation, and supports local processing. The small model is MIT licensed and supports multilingual recognition. SAPI avoids another voice model and package beyond the optional Windows bindings.
-- **Consequences:** Voice dependencies are optional and do not prevent app startup if absent. Microphone capture is explicit, capped at 60 seconds, stored temporarily and deleted after transcription. Model download is separate and requires a confirmation; transcribed text remains preview-only until Phase 9. No CUDA or model weights are installed automatically. The initial model download stalled before receiving `model.bin`; real transcription and audio output still need smoke testing.
+- **Consequences:** Voice dependencies are optional and do not prevent app startup if absent. Microphone capture is explicit, capped at 60 seconds, stored temporarily and deleted after transcription. Model download is separate and requires confirmation; transcribed text remains preview-only. The pinned model weights are present locally and WAV transcription succeeded after the PyAV compatibility fix. No CUDA is installed. Physical microphone capture and audible TTS still need desktop verification.
+
+## ADR-017 — Make the startup task greeting opt-in and local
+
+- **Status:** Selected and implemented; audible Windows verification remains.
+- **Decision:** Let the user independently enable Windows sign-in startup and a spoken task greeting. Generate the greeting from open task counts, overdue tasks and up to three upcoming deadlines, then speak it through the existing Windows SAPI adapter. Both preferences are off by default.
+- **Alternatives:** Always speak on launch; use microphone/wake-word input; send task data to a cloud speech service.
+- **Reason:** The user's requested laptop greeting should work without a network model or microphone and should announce relevant deadlines while preserving explicit control.
+- **Consequences:** The optional pywin32/SAPI dependency and an installed Windows speech voice are required. The greeting reveals task titles to anyone within hearing range, so it stays separately opt-in. No task descriptions are spoken.

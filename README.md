@@ -1,10 +1,10 @@
 # MyAssistant
 
-MyAssistant is a local-first Windows desktop assistant for launching applications, finding files and folders, and managing tasks and deadlines. Optional voice and natural-language features remain future work.
+MyAssistant is a local-first Windows desktop assistant for launching applications, finding files and folders, and managing tasks and deadlines. It also supports push-to-talk speech, Windows speech output, and an optional spoken task greeting at startup.
 
 ## Project status
 
-**Phase 8 — Voice implementation complete; hardware acceptance pending.** The Voice tab has push-to-talk capture, preview-only transcription, explicit local model download and on-demand Windows speech output. The voice extra is optional; no audio is captured until Record is pressed. Hugging Face transfers time out in this environment; inference and interactive audio checks remain. Phases 2–7 are implemented. Read [PROJECT_DOCUMENT.md](PROJECT_DOCUMENT.md) for the roadmap and [docs/DECISION_LOG.md](docs/DECISION_LOG.md) for technology choices.
+**Phases 2–8 are implemented; hardware acceptance remains.** The Voice tab has push-to-talk capture, preview-only transcription, explicit local model download and on-demand Windows speech output. The pinned model is present and WAV transcription succeeded; physical microphone and audible TTS checks remain. The voice extra is optional, and no audio is captured until Record is pressed. A PyInstaller one-folder prototype is also configured. Read [PROJECT_DOCUMENT.md](PROJECT_DOCUMENT.md) for the roadmap and [docs/DECISION_LOG.md](docs/DECISION_LOG.md) for technology choices.
 
 ## Development environment
 
@@ -16,16 +16,18 @@ To install the optional speech input/output stack in the development environment
 
 Open the **Voice** tab, approve the model download while online, then use **Record** and **Stop recording** to capture a clip. Review the transcript before choosing **Speak transcript**. Captured audio is temporary and removed after transcription; transcript text is never executed.
 
-Filesystem indexing is opt-in. In PowerShell, set absolute roots and optional excluded subfolders before launching:
+File and folder search is a separate Home search mode from application search. To enable it, open **Settings**, choose folders such as `C:\MyAssistant`, your `D:\Projects` folder, or your OneDrive folder, add any folders to exclude, and click **Save and index**. MyAssistant remembers these folders, so you do not need to set PowerShell variables every time. The first scan and later startup refreshes run in the background. Search uses file and folder names and paths, not document contents.
+
+Environment variables remain available for scripted or development setup:
 
 ```powershell
-$env:MYASSISTANT_INDEX_ROOTS = "C:\Users\you\Documents;D:\Projects"
-$env:MYASSISTANT_INDEX_EXCLUSIONS = "C:\Users\you\Documents\Private"
 $env:MYASSISTANT_TIMEZONE = "Asia/Kathmandu"
-$env:MYASSISTANT_GLOBAL_HOTKEY = "Ctrl+Space"
+$env:MYASSISTANT_GLOBAL_HOTKEY = "Ctrl+Alt+M"
 # Optional; defaults to false.
 $env:MYASSISTANT_START_WITH_WINDOWS = "false"
 ```
+
+To have MyAssistant start at Windows sign-in and optionally speak your task deadlines, open **Settings** and enable **Start MyAssistant when I sign in to Windows** and **Speak a greeting with my upcoming tasks**. These options are saved on this computer and are off by default. The greeting uses Windows speech output, reads open task titles and deadlines, and does not use the microphone. Enable startup after you are ready for this source-based development copy to launch at sign-in.
 
 The app scans configured roots in a background worker on startup. It indexes names and metadata only; it does not read file contents. Hidden/system items and symlinks are skipped. A scan with errors retains old rows for the affected root.
 
@@ -42,26 +44,17 @@ C:\Python314\python.exe -m venv .venv
 
 The Python launcher (`py`) is not available on this machine. Use the installed Python executable directly if recreating the environment.
 
-## Planned layout
+## Build a Windows one-folder prototype
 
-```text
-MyAssistant/
-├── main.py                 # application composition and entry point
-├── config.py               # configuration loading and validation
-├── core/                   # lifecycle, command types, orchestration
-├── database/               # SQLite access, schema and migrations
-├── launcher/               # application and file opening adapters
-├── search/                 # indexing, retrieval and ranking
-├── todo/                   # tasks, deadlines and reminders
-├── ui/                     # PySide6 windows, tray and notifications
-├── system/                 # Windows startup and hotkey adapters
-├── voice/                  # replaceable speech and TTS interfaces
-├── docs/                   # architecture decisions and supporting docs
-└── tests/                  # isolated tests, mocks and temporary fixtures
+Install the optional build extra and run the PowerShell script from the project:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,voice,build]"
+.\scripts\build_windows.ps1
 ```
 
-Directories and modules will be introduced as their phase begins; this is a proposed structure, not a claim that those components exist.
+The built prototype is written to `dist\MyAssistant`. Keep the complete folder when running or distributing it. User data and the speech model remain under `%LOCALAPPDATA%\MyAssistant`; neither is bundled. This is a development build, not an installer or signed release.
 
-## Next step
+## Project status
 
-Phase 7 Windows integration and the Phase 8 voice implementation are in place. Phase 8 acceptance awaits the pinned model weights and interactive microphone/speaker checks. Packaging remains future work.
+The core launcher, file search, tasks, Windows integration and voice code are implemented. The pinned speech model is present, and automated checks report **66 passed, 1 skipped** (Windows symlink creation is restricted). A one-folder build starts from an isolated working directory. Remaining acceptance work includes an actual desktop microphone/speaker check and checking the packaged build on a clean Windows account. The optional AI provider remains deferred. See [PROJECT_DOCUMENT.md](PROJECT_DOCUMENT.md) for the full status.

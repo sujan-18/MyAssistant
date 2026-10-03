@@ -1,9 +1,9 @@
 # MyAssistant — Project Architecture and Development Specification
 
-**Document version:** 1.2  
-**Last updated:** 2026-10-02 (Asia/Katmandu)  
-**Project status:** Phase 7 Windows integration implemented, including global hotkey, tray, reminders and opt-in startup.
-**Document status:** CPython 3.14.8, PySide6 6.11.2, tzdata 2026.4 and pytest 9.1.1 are installed. 55 tests pass; one symlink test is skipped because this Windows environment does not permit symlink creation. Interactive shell behavior remains to be verified manually.
+**Document version:** 1.3
+**Last updated:** 2026-10-03 (Asia/Katmandu)
+**Project status:** Phases 2–8 implemented; speech acceptance, optional AI decision, reliability review and release packaging remain open.
+**Document status:** CPython 3.14.8, PySide6 6.11.2, tzdata 2026.4, pytest 9.1.1 and PyInstaller 6.22.3 are installed. 66 tests pass; one symlink test is skipped because this Windows environment does not permit symlink creation. A Windows one-folder build completed and starts from an isolated working directory; microphone/speaker and clean-machine checks need interactive verification.
 
 This document is the project’s source of truth. The status terms used here mean:
 
@@ -20,7 +20,7 @@ This document is the project’s source of truth. The status terms used here mea
 
 MyAssistant is a personal, local-first Windows desktop assistant. The intended product combines a fast keyboard launcher, configurable file and application search, task/deadline tracking, reminders, and later optional voice input, speech output and natural-language interpretation. It is intended to be a cohesive modular application rather than a collection of scripts.
 
-The repository contains the Phase 2 bootstrap, a PySide6 launcher, Phase 4 application discovery/search/launch, Phase 5 configured-root file/folder search, Phase 6 task/deadline management, and Phase 7 Windows hotkey/tray/reminder/startup integration. Voice, packaging and later integrations remain future work. The whole-stack audit and implementation updates are in [docs/TECHNOLOGY_EVALUATION.md](docs/TECHNOLOGY_EVALUATION.md).
+The repository contains the application foundation, PySide6 launcher, Start Menu application discovery, configured-root file/folder search, task/deadline management, Windows hotkey/tray/reminders, local speech adapters and an optional startup greeting. The pinned local model is present. Remaining work is acceptance testing on the desktop, an explicit decision on optional AI, reliability polish and a clean-machine release check. The whole-stack audit and implementation updates are in [docs/TECHNOLOGY_EVALUATION.md](docs/TECHNOLOGY_EVALUATION.md).
 
 ## 2. Problem, goals and non-goals
 
@@ -70,7 +70,7 @@ The whole-stack audit recommends **standard CPython 3.14.8 x64**. The system and
 
 ### Existing repository status
 
-Git has been initialized but has no commits. Existing paths: `.gitignore`, `.vscode/settings.json`, blank `config.py`, blank `main.py`, and directories `.venv`, `.vscode`, `core`, `launcher`, `search`, `tests`. No `requirements.txt`, `pyproject.toml`, README, documentation, functional modules or tests existed at inspection. This document, README and decision log are the Phase 0 additions.
+The initial inspection description above was historical and is superseded by the current implementation status and roadmap. The repository now has a `pyproject.toml`, project documentation, feature modules under `core/`, `launcher/`, `search/`, `system/`, `todo/`, `ui/` and `voice/`, and automated tests under `tests/`.
 
 ## 4. Users and use cases
 
@@ -88,19 +88,19 @@ Representative flows:
 
 | ID | Requirement | Status |
 |---|---|---|
-| F-01 | Global configurable shortcut opens a search window over other applications. | Planned |
-| F-02 | Search apps, files, folders, names, paths and supported commands; arrow/Enter/Escape keyboard navigation. | **Partially implemented:** application search and keyboard navigation are connected; file/folder search and commands remain planned. |
+| F-01 | Global configurable shortcut opens a search window over other applications. | **Implemented:** Win32 global hotkey opens and focuses the launcher; conflict reporting is supported. Interactive conflict checks remain. |
+| F-02 | Search apps, files, folders, names, paths and supported commands; arrow/Enter/Escape keyboard navigation. | **Implemented for apps and indexed files/folders:** Home has separate scopes and keyboard navigation; natural-language commands remain deferred. |
 | F-03 | Configurable indexed roots; initial suggested roots are C: and D:, never permanent hard-coded assumptions. | **Implemented:** opt-in absolute roots via `MYASSISTANT_INDEX_ROOTS`; no drive is indexed by default. |
 | F-04 | Maintain metadata index; handle errors, hidden/system paths, symlinks, deletion and rename reconciliation, exclusions, large trees. | **Implemented with limits:** background bounded batches, hidden/system and symlink skipping, path exclusions, error/cancellation-safe stale pruning and FTS5 search. Large-tree performance and richer progress/cancellation controls need field measurement. |
 | F-05 | Discover applications from Start Menu shortcuts, known locations and user-configured paths. | **Partially implemented:** Start Menu `.lnk` discovery; known install locations/configured roots remain planned. |
-| F-06 | Launch apps/files/folders through dedicated validated adapters. | **Partially implemented:** explicitly selected Start Menu shortcut opener; files/folders and richer validation remain planned. |
-| F-07 | Ambiguous or low-confidence targets require user selection. | Designed |
+| F-06 | Launch apps/files/folders through dedicated validated adapters. | **Implemented:** selected catalog shortcuts and indexed paths are revalidated before opening. |
+| F-07 | Ambiguous or low-confidence targets require user selection. | **Implemented:** equally ranked matches are presented for explicit user selection. |
 | F-08 | Task CRUD, completion/reopen, filtering/search, priority, tags and optional project path. | **Implemented:** SQLite service and Tasks tab support add/edit/delete, open/completed filters, text search, priorities, tags and absolute project paths. |
 | F-09 | Timezone-aware countdown, past-due and completed-task behavior, restart-safe reminders. | **Implemented:** aware deadlines are stored in UTC with an IANA timezone ID; DST gaps/overlaps are handled explicitly; countdowns recalculate from UTC; reminder windows have persistent deduplication records and tray message delivery. |
 | F-10 | Moveable/resizable task widget, tray, optional topmost, configurable appearance and notifications. | Future |
-| F-11 | Optional Windows startup and greeting; greeting, TTS and notices independently configurable. | Planned |
-| F-12 | Replaceable offline speech recognition and text-to-speech. | Future |
-| F-13 | Optional natural-language model returns allowlisted structured actions only. | Future |
+| F-11 | Optional Windows startup and spoken task greeting; greeting and startup independently configurable. | **Implemented:** Settings toggles the per-user Windows Startup entry and optional Windows SAPI greeting with open-task counts and up to three upcoming deadlines; both are off by default. Interactive speech and sign-in verification remain. |
+| F-12 | Replaceable offline speech recognition and text-to-speech. | **Implemented; hardware acceptance pending:** push-to-talk, pinned CPU/int8 faster-whisper and Windows SAPI output are available. |
+| F-13 | Optional natural-language model returns allowlisted structured actions only. | **Deferred by ADR-008:** no provider or model has been selected; existing deterministic search and task UI remain usable without an LLM. |
 
 ## 6. Non-functional requirements
 
@@ -157,7 +157,7 @@ Configured roots and exclusions drive a cancellable background traversal. The cu
 
 ### Windows shell integration
 
-The application registers `Ctrl+Space` globally by default using Win32 `RegisterHotKey`; override it with `MYASSISTANT_GLOBAL_HOTKEY` using a modifier plus one key (for example `Ctrl+Alt+M`). Windows may reject a chord already registered by another program; the app logs the conflict and remains usable. The tray menu opens the launcher, checks task reminders and exits. Closing hides the window when a system tray is available, and exits if there is no tray. Task reminder delivery is checked on startup and every 30 seconds; a reminder delivery record is saved only when tray message support is available. Startup is off by default; set `MYASSISTANT_START_WITH_WINDOWS=true` to add a per-user Startup-folder script, or `false` to remove it. This source-based startup entry must be adapted for packaged distribution.
+The application registers `Ctrl+Alt+M` globally by default using Win32 `RegisterHotKey`; override it with `MYASSISTANT_GLOBAL_HOTKEY` using a modifier plus one key (for example `Ctrl+Alt+M`). Windows may reject a chord already registered by another program; the app logs the conflict and remains usable. The tray menu opens the launcher, checks task reminders and exits. Closing hides the window when a system tray is available, and exits if there is no tray. Task reminder delivery is checked on startup and every 30 seconds; a reminder delivery record is saved only when tray message support is available. Windows sign-in startup and the spoken task greeting are separately configurable in Settings and off by default. The greeting uses Windows SAPI to announce the open-task count, overdue count and up to three upcoming deadlines; it uses no microphone or network model. `MYASSISTANT_START_WITH_WINDOWS=true` remains available for scripted setup. The source-based startup entry must be adapted for packaged distribution.
 
 The first proposal is an explicit walker plus persisted metadata/FTS5. Compare it with Windows Search and NTFS USN Journal before investing in incremental infrastructure. A later hybrid may use `watchdog` or USN to mark roots dirty and periodic reconciliation to recover missed events. Windows Search can only cover indexed scopes and may not meet user-controlled exclusion/ranking needs. USN is NTFS-specific and requires careful journal-wrap and identity handling; it is not the Phase 0 implementation choice.
 
@@ -171,7 +171,7 @@ The Tasks tab calls `TaskService` methods; create/update and tag changes are tra
 
 ### Voice and TTS
 
-Future speech pipeline: user gesture/activation → microphone capture → replaceable recognizer → transcript preview/command parser → typed action and validation → normal service path → UI/optional TTS response. Voice recognition must not bypass ambiguity or confirmation. Prefer push-to-talk initially; wake-word capture is out of scope until privacy and resource costs are justified. TTS receives response text via an interface and can be disabled independently.
+Implemented speech pipeline: explicit Record/Stop → temporary WAV capture and normalization → replaceable recognizer → transcript preview → explicit SAPI speech output. Voice recognition does not trigger actions. The optional startup greeting summarizes open task deadlines through the same Windows speech adapter. The pinned model runs locally on CPU/int8; no microphone or model work occurs unless the user requests it. Wake-word capture remains out of scope.
 
 ### Optional AI
 
@@ -201,7 +201,7 @@ Research checked on 2026-10-02. Versions and repository status change; repeat th
 | Vosk | Python package metadata shows 0.3.75, Windows x64 support and Apache-2.0 API. [Setup](https://github.com/alphacep/vosk-api/blob/master/python/setup.py), [license](https://github.com/alphacep/vosk-api/blob/master/COPYING) | Offline, streaming-oriented, relatively light CPU use, no GPU needed. | Model accuracy/language/model sizes vary; package/release cadence should be verified at selection time. |
 | Windows speech APIs | Windows exposes installed speech facilities, but API availability and speech-recognition support differ between WinRT/SAPI generations and language packs. | No external model distribution when available; close Windows integration. | Must prove a supported desktop Python integration and actual local language/device availability; do not assume it is a universal recognizer. |
 
-**Selected initial path:** optional `sounddevice` 0.5.6 capture + `faster-whisper` 1.2.1 / CTranslate2 4.8.2, running multilingual tiny on CPU int8. The 78.2 MB model is MIT licensed and pinned to revision `d90ca5fe260221311c53c58e660288d3deb8d356`; download is offered only after a confirmation prompt. The app has push-to-talk, 60 second cap, converts the detected microphone rate to 16 kHz, and deletes the temporary WAV after transcription. It presents a transcript preview and does not execute any recognized text; command interpretation is Phase 9. The device query found an internal Cirrus microphone (2 input channels, 44.1 kHz). Direct capture and real-speech transcription have not yet been run. The model download attempt did not transfer `model.bin` in this environment, so model inference validation remains open. CPU is mandatory; CUDA/GPU remains deferred for this 2 GB MX330.
+**Selected initial path:** optional `sounddevice` 0.5.6 capture + `faster-whisper` 1.2.1 / CTranslate2 4.8.2, running multilingual tiny on CPU int8. The model is MIT licensed and pinned to revision `d90ca5fe260221311c53c58e660288d3deb8d356`. Its required files are present under `%LOCALAPPDATA%\MyAssistant\models\faster-whisper-tiny` (about 77 MB model.bin). The app has push-to-talk, a 60 second cap, converts microphone input to 16 kHz, and deletes the temporary WAV after transcription. It presents a transcript preview and does not execute recognized text. Step 2 local transcription was reported successful after pinning PyAV 18.1.0. Physical microphone capture and audible output have not been confirmed in this project record. CPU is mandatory; CUDA/GPU remains deferred for this 2 GB MX330.
 
 ### Text-to-speech (Phase 8 implementation)
 
@@ -229,7 +229,7 @@ Do not index file content. Initial metadata rows contain names and filesystem pr
 
 The Windows `RegisterHotKey` API defines a system-wide hotkey and reports a `WM_HOTKEY` message; registration can fail when another application owns the combination. [Microsoft documentation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerhotkey). This is preferred over global input capture. `keyboard` offers a convenient Python global hook and supports Windows, but it hooks all keyboard events and therefore has a broader privacy/compatibility surface. [Project documentation](https://github.com/boppreh/keyboard).
 
-Proposed: a native registration adapter integrated into the Qt event/message loop. `Ctrl+Space` is only a suggested default and may conflict with input methods; detect conflict and allow configuration. Do not require administrator rights for ordinary hotkey operation; test secure desktop/UAC limitations separately.
+Implemented: a native registration adapter integrated into the Qt event/message loop. The default is `Ctrl+Alt+M`; configure it with `MYASSISTANT_GLOBAL_HOTKEY`. Do not require administrator rights for ordinary hotkey operation; test secure desktop/UAC limitations separately.
 
 ### Database
 
@@ -377,7 +377,7 @@ Use Python `logging` with rotating files under `%LOCALAPPDATA%\MyAssistant\logs`
 
 ## 20. Testing strategy
 
-Testing tools are proposed, not installed: `pytest` 9.1.1 is compatible with Python 3.14; type/static/lint tools selected in Phase 1. Test pure domain behavior separately from Windows adapters.
+`pytest` 9.1.1 is installed and used; formatting, type-check and lint tools remain unselected. Test pure domain behavior separately from Windows adapters.
 
 - Search normalization, matching, ranking thresholds and ambiguous result behavior.
 - Indexing using `tmp_path`-style trees, exclusions, hidden files, symlink loops, deleted/renamed rows and mocked permission errors.
@@ -422,7 +422,7 @@ No build configuration exists. Release pipeline should pin dependencies and buil
 
 ## 25. Configuration
 
-Configuration is currently loaded from environment variables. `MYASSISTANT_INDEX_ROOTS` and `MYASSISTANT_INDEX_EXCLUSIONS` accept absolute paths separated by the Windows path separator (`;`); both default to empty. The app scans configured roots on startup. A future settings UI may replace these environment settings. Other planned preferences include global hotkey, startup, notification/greeting/voice toggles, theme, and voice engine/model. Paths and runtime files use the per-user app-data path service. Do not put credentials in plain config.
+Filesystem search roots and exclusions can be selected in Settings and are saved per user; saved UI choices take precedence over environment defaults. `MYASSISTANT_INDEX_ROOTS` and `MYASSISTANT_INDEX_EXCLUSIONS` remain available for scripted setup and accept absolute paths separated by the Windows path separator (`;`). Roots default to empty. Configured roots are refreshed in a background worker on startup. Other preferences include global hotkey, startup, notification/greeting/voice toggles, theme, and voice engine/model. Paths and runtime files use the per-user app-data path service. Do not put credentials in plain config.
 
 ## 26. Performance and capacity
 
@@ -436,34 +436,31 @@ Configuration is currently loaded from environment variables. `MYASSISTANT_INDEX
 
 ## 27. Known limitations and open technical questions
 
-- Exact supported Windows baseline is undecided.
+- Windows 11 build 26200 was reported by the current PyInstaller build environment; the oldest supported Windows baseline still needs selection before release.
 - CPU name/core count and RAM could not be measured because WMI calls were denied. User-provided 16 GB remains unverified.
-- The audit input reports system CPython 3.14.5; an older setup record claims upgrade to 3.14.8. Reconcile this before environment setup. CPython 3.14.8 x64 is the selected project target, but the existing venv is stale and runtime compatibility has not been validated.
-- Speech recognition engine and microphone binding remain undecided. CPU inference is the baseline; MX330 CUDA inference is experimental because CUDA 13 dropped Pascal support.
-- FTS5 inclusion in chosen Python SQLite build must be verified.
-- Search index choice beyond the first walker is undecided pending coverage/performance measurements.
-- Recognition engine/model, microphone API, TTS API/voice and individual model licenses are undecided.
-- Database schema above is a candidate, not an implemented or migrated schema.
-- Startup mechanism, exact shortcut default, notification API, package format and signing/update approach need implementation-time validation.
-- Core bootstrap passes its Phase 2 test suite. Existing launcher backend code is outside this phase and remains unverified. The desktop UI and tests for later feature phases remain unimplemented.
+- MX330 CUDA inference is experimental because the card has 2 GB VRAM and CUDA 13 dropped Pascal support; CPU is the supported speech path.
+- Large-drive indexing performance and ongoing reconciliation policy need measurement on user-selected roots.
+- The LLM/provider decision is deferred; no LLM feature is required for deterministic search and task workflows.
+- Actual physical microphone capture, audible SAPI output, sign-in startup and clean-account packaging still need interactive acceptance.
+- Production installer, code signing, updates and supported Windows minimum remain undecided.
 
 ## 28. Roadmap
 
 | Phase | Scope | Exit evidence | Status |
 |---|---|---|---|
-| 0 — Research & architecture | Research, architecture, docs, decisions, proposed layout. | This baseline; no major app code. | **Current; documentation delivered.** |
-| 1 — Development environment | Supported Python, VS Code/Git workflow, venv, dependency/tool policy, tests/logging setup. | Reproducible setup and environment record. | **Partially complete:** CPython 3.14.8, PySide6 and pytest installed; formatting/type-check policy and smoke validation remain. |
+| 0 — Research & architecture | Research, architecture, docs, decisions, proposed layout. | This baseline; no major app code. | **Complete:** design and compatibility audit recorded; implementation changes supersede the original proposed-state notes. |
+| 1 — Development environment | Supported Python, VS Code/Git workflow, venv, dependency/tool policy, tests/logging setup. | Reproducible setup and environment record. | **Implemented:** CPython 3.14.8 x64, pinned runtime/dev dependencies and a working `.venv`; formatting/type-check policy remains open. |
 | 2 — Project foundation | Configuration, logging, SQLite, migrations, lifecycle, basic tests. | Startup/shutdown and persistence checks pass. | **Complete:** configuration, logging, versioned schema and lifecycle implemented; 11 Phase 2 tests pass. |
 | 3 — Desktop launcher | PySide6 window, input, results, keyboard navigation, hide/show and clean exit. | Window behavior and keyboard tests pass; Windows interactive check remains. | **Complete:** launcher lifecycle and keyboard interaction have automated offscreen coverage. |
 | 4 — Application search and launching | Discovery, catalog, ranking and launch adapters integrated with the UI. | Search/ambiguity tests and mocked Windows launch checks pass; actual Start Menu launch remains an interactive smoke check. | **Implemented:** UI searches the local Start Menu catalog and opens only a selected, revalidated shortcut. |
 | 5 — File/folder search | Configured roots, indexing, FTS/search/ranking, exclusions/reconciliation. | Isolated temp-tree tests and measured index/query performance. | **Implemented:** 35 tests pass, 1 symlink test skipped due to host permissions; 1,021-entry synthetic scan/query measured. Large-drive and interactive verification remain. |
 | 6 — Tasks / Todo | Task persistence, deadlines, countdown and reminder rules. | CRUD, timezone, migration and restart tests. | **Implemented:** service and Tasks tab are covered; DST, countdown, reminder restart/dedup and CRUD tests pass. Reminder notification delivery was added in Phase 7. |
 | 7 — Windows integration | Global hotkey, tray, notifications and opt-in startup. | Conflict/restart, install/uninstall and preference checks. | **Implemented:** native `RegisterHotKey` adapter, Qt tray menu, durable reminder delivery and opt-in per-user Startup-folder script; 9 integration unit tests pass. Interactive shell behavior and shortcut conflicts still need manual Windows verification. |
-| 8 — Speech and TTS | Optional microphone, selected local STT pipeline and replaceable speech output. | Hardware bake-off, local processing and recoverable failure paths. | **Implementation complete; acceptance pending:** optional voice extra, push-to-talk Voice tab, local CPU/int8 recognizer adapter, explicit pinned model download, transcript preview, and opt-in Windows SAPI output implemented. 62 tests pass, 1 skipped. Hugging Face model transfer times out in this environment, so local inference is unverified. Microphone capture and audible TTS still require an interactive desktop check. |
-| 9 — AI layer | Optional typed action proposal, validation and safe execution. | Adversarial tests and explicit privacy choice. | Future |
-| 10 — Polish and reliability | Performance, responsiveness, accessibility and failure recovery review. | Measured startup/resource/search behavior and resolved critical issues. | Future |
-| 11 — Comprehensive testing | Unit, integration, UI and regression coverage across implemented features. | Full test suite passes on supported Windows environment. | Future |
-| 12 — Packaging | Windows executable/installer and production configuration. | Clean machine install, upgrade, uninstall, startup and security review. | Future |
+| 8 — Speech and TTS | Optional microphone, selected local STT pipeline and replaceable speech output. | Hardware bake-off, local processing and recoverable failure paths. | **Implemented; acceptance pending:** pinned model weights are present and local WAV transcription was verified after the PyAV fix. Desktop microphone capture and audible TTS still need interactive confirmation. |
+| 9 — AI layer | Optional typed action proposal, validation and safe execution. | Adversarial tests and explicit privacy choice. | **Deferred:** no LLM provider/model was chosen; safe deterministic flows remain available. |
+| 10 — Polish and reliability | Performance, responsiveness, accessibility and failure recovery review. | Measured startup/resource/search behavior and resolved critical issues. | **In progress:** focused fixes and test cleanup completed; accessibility, large-root performance and clean-user review remain. |
+| 11 — Comprehensive testing | Unit, integration, UI and regression coverage across implemented features. | Full test suite passes on supported Windows environment. | **Automated suite passing:** 66 passed, 1 symlink test skipped due to host permissions. Interactive hardware and clean-install checks remain. |
+| 12 — Packaging | Windows executable/installer and production configuration. | Clean machine install, upgrade, uninstall, startup and security review. | **Prototype built:** PyInstaller 6.22.3 one-folder bundle starts from an isolated working directory; installer, signing and clean-machine verification remain. |
 
 ## 29. Decision log index
 
@@ -509,12 +506,12 @@ See [docs/DECISION_LOG.md](docs/DECISION_LOG.md). Current proposals cover the Py
 | Application catalog and launcher backend | Start Menu discovery, SQLite catalog refresh, ranked search, ambiguity detection and selected `.lnk` opener implemented in `launcher/`; catalog pruning occurs only after complete discovery. |
 | Desktop launcher UI | PySide6 window with live application results, ambiguity notice, arrow/Enter/Escape handling, hide/reopen and exit action implemented in `ui/`; offscreen UI tests pass. |
 | File/folder search/indexing | Configured-root scanner, FTS5 name/path retrieval, exclusions, hidden/system and symlink skipping, stale reconciliation, background worker and selected indexed path opener implemented. |
-| Tray, global hotkey, startup, notifications | Implemented in `ui/windows_integration.py` and `system/windows.py`: configurable Win32 hotkey (default Ctrl+Space), tray open/check reminders/exit menu, periodic reminder delivery, and opt-in per-user Startup-folder script (`MYASSISTANT_START_WITH_WINDOWS=true`). Requires interactive Windows verification. |
+| Tray, global hotkey, startup, notifications, spoken greeting | Implemented in `ui/windows_integration.py`, `system/windows.py`, `voice/greeting.py` and Settings: configurable Win32 hotkey, tray reminder controls, independently opt-in Startup-folder entry and SAPI task greeting. Requires interactive Windows verification. |
 | Todo/countdown/reminders | SQLite-backed CRUD, editing, completion/reopen, tags, filtering, timezone-aware deadlines, countdowns, durable reminder deduplication, and tray-message delivery implemented in `todo/` and `ui/`. |
-| Speech recognition and TTS | Push-to-talk, CPU/int8 faster-whisper adapter, explicit model download, preview-only transcript and explicit Windows SAPI output implemented in `voice/` and `ui/voice_panel.py`. Optional dependencies installed. No model weights are present yet; the actual capture/recognition/audible output smoke checks remain. |
-| AI integration | Not implemented; no provider selected. |
-| Tests | 62 pass and 1 is skipped because Windows symlink creation is restricted; coverage includes Phase 2-8 services, migration, reminders, voice audio normalization and offscreen UI. Large-root behavior and interactive Windows audio remain. |
-| Packaging and executable | Not implemented. |
+| Speech recognition and TTS | Push-to-talk, CPU/int8 faster-whisper adapter, explicit model download, preview-only transcript and Windows SAPI output implemented in `voice/` and `ui/voice_panel.py`. Pinned weights are present; WAV inference is verified. Desktop microphone and audible output checks remain. |
+| AI integration | Deferred; no provider selected. |
+| Tests | 66 pass and 1 is skipped because Windows symlink creation is restricted; coverage includes Phase 2-8 services, migration, reminders, voice audio normalization, startup greeting and offscreen UI. Large-root behavior and interactive Windows audio remain. |
+| Packaging and executable | PyInstaller 6.22.3 one-folder prototype builds to `dist/MyAssistant`; a contained launch from outside the checkout reached a running state. Installer, signing, clean-account install/upgrade/uninstall and manual user-flow checks remain. |
 
 ## 33. Sources and review record
 

@@ -12,11 +12,11 @@ _PALETTES = {
         "border": "#d9e2ef",
         "text": "#1d2939",
         "muted": "#66758a",
-        "accent": "#087f8c",
-        "accent_hover": "#066b75",
-        "accent_soft": "#dff4f1",
+        "accent": "#3478f6",
+        "accent_hover": "#2465dc",
+        "accent_soft": "#e4edff",
         "input": "#ffffff",
-        "selection": "#dcefeb",
+        "selection": "#dce8ff",
         "danger": "#b93838",
     },
     "dark": {
@@ -27,11 +27,11 @@ _PALETTES = {
         "border": "#344456",
         "text": "#edf3fa",
         "muted": "#a1b0c2",
-        "accent": "#65c9bd",
-        "accent_hover": "#83ddd0",
-        "accent_soft": "#243f43",
+        "accent": "#5794ff",
+        "accent_hover": "#78a8ff",
+        "accent_soft": "#24375a",
         "input": "#121b25",
-        "selection": "#294247",
+        "selection": "#24375a",
         "danger": "#ff7777",
     },
 }
@@ -50,48 +50,47 @@ def application_stylesheet(theme: str) -> str:
             font-family: 'Segoe UI';
             font-size: 13px;
         }}
-        QMainWindow, QWidget#AppShell, QWidget#SearchPage, QWidget#TaskPanel, QWidget#VoicePanel {{
+        QMainWindow, QWidget#AppShell, QWidget#HomePage, QWidget#ContentPage,
+        QWidget#TaskPanel, QWidget#VoicePanel, QWidget#DashboardWidget {{
             background-color: {colors['window']};
         }}
-        QTabWidget::pane {{
-            background-color: {colors['surface']};
+        QWidget#DashboardWidget {{
             border: 1px solid {colors['border']};
             border-radius: 14px;
-            top: -1px;
         }}
-        QTabBar::tab {{
-            color: {colors['muted']};
-            background-color: {colors['surface_alt']};
-            border: 1px solid {colors['border']};
-            border-bottom: none;
-            border-top-left-radius: 9px;
-            border-top-right-radius: 9px;
-            padding: 9px 18px;
-            margin-right: 4px;
-        }}
-        QTabBar::tab:selected {{
-            color: {colors['accent']};
+        QLabel#DashboardBrand {{ font-size: 17px; font-weight: 750; }}
+        QLabel#DashboardGreeting {{ color: {colors['muted']}; font-size: 14px; padding: 4px 1px; }}
+        QLabel#DashboardSection {{ color: {colors['accent']}; font-size: 13px; font-weight: 750; }}
+        QLabel#DashboardStatus {{ color: {colors['muted']}; font-size: 11px; }}
+        QWidget#DashboardWidget QPushButton {{ padding: 7px 9px; }}
+        QWidget#DashboardWidget QComboBox {{ padding: 7px 6px; }}
+        QWidget#DashboardWidget QLineEdit {{ padding: 9px; }}
+        QWidget#DashboardWidget QListWidget {{ border-radius: 10px; }}
+        QWidget#DashboardWidget QListWidget::item {{ padding: 8px; margin: 2px; }}
+        QWidget#Sidebar {{
             background-color: {colors['surface']};
-            font-weight: 700;
+            border-right: 1px solid {colors['border']};
         }}
-        QTabBar::tab:hover:!selected {{
-            color: {colors['text']};
-            background-color: {colors['surface_hover']};
-        }}
+        QWidget#SidebarSeparator {{ background-color: {colors['border']}; }}
+        QLabel#SidebarLabel {{ color: {colors['muted']}; font-size: 11px; font-weight: 700; }}
         QLabel#BrandMark {{
             color: #ffffff;
             background-color: {colors['accent']};
-            border-radius: 19px;
+            border-radius: 12px;
             font-size: 17px;
             font-weight: 800;
-            min-width: 38px;
-            max-width: 38px;
-            min-height: 38px;
-            max-height: 38px;
+            min-width: 42px;
+            max-width: 42px;
+            min-height: 42px;
+            max-height: 42px;
             qproperty-alignment: AlignCenter;
         }}
         QLabel#BrandTitle {{ font-size: 17px; font-weight: 700; }}
         QLabel#TaskHeading {{ font-size: 21px; font-weight: 700; }}
+        QLabel#PageHeading {{ font-size: 27px; font-weight: 700; }}
+        QLabel#Greeting {{ color: {colors['accent']}; font-size: 31px; font-weight: 800; }}
+        QLabel#WelcomeLine {{ color: {colors['muted']}; font-size: 19px; }}
+        QLabel#CardHeading {{ font-size: 16px; font-weight: 700; padding-bottom: 5px; }}
         QLabel#PanelStatus {{ color: {colors['accent']}; }}
         QLabel#BrandSubtitle, QLabel#Description, QLabel#Footer {{ color: {colors['muted']}; }}
         QLabel#SectionEyebrow {{
@@ -146,6 +145,53 @@ def application_stylesheet(theme: str) -> str:
         }}
         QPushButton#PrimaryButton:hover {{ background-color: {colors['accent_hover']}; }}
         QPushButton#DangerButton {{ color: {colors['danger']}; }}
+        QPushButton#NavButton {{
+            text-align: left;
+            background-color: transparent;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            padding: 11px 12px;
+            min-height: 22px;
+        }}
+        QPushButton#NavButton:checked {{
+            color: {colors['accent']};
+            background-color: {colors['accent_soft']};
+            border-color: {colors['selection']};
+        }}
+        QPushButton#NavButton:hover:!checked {{ background-color: {colors['surface_hover']}; }}
+        QPushButton#SearchScopeButton {{
+            color: {colors['muted']};
+            background-color: {colors['surface_alt']};
+            border: 1px solid {colors['border']};
+            border-radius: 16px;
+            padding: 7px 14px;
+        }}
+        QPushButton#SearchScopeButton:checked {{
+            color: #ffffff;
+            background-color: {colors['accent']};
+            border-color: {colors['accent']};
+        }}
+        QPushButton#SearchScopeButton:hover:!checked {{
+            color: {colors['text']};
+            background-color: {colors['surface_hover']};
+        }}
+        QPushButton#ShortcutCard, QPushButton#SuggestionButton {{
+            text-align: left;
+            background-color: {colors['surface']};
+            border: 1px solid {colors['border']};
+            border-radius: 11px;
+            padding: 12px;
+        }}
+        QPushButton#ShortcutCard {{ min-height: 68px; }}
+        QPushButton#ShortcutCard:hover, QPushButton#SuggestionButton:hover {{
+            border-color: {colors['accent']};
+            background-color: {colors['surface_hover']};
+        }}
+        QWidget#SuggestionsCard {{
+            background-color: {colors['surface']};
+            border: 1px solid {colors['border']};
+            border-radius: 13px;
+        }}
         QListWidget {{
             color: {colors['text']};
             background-color: {colors['surface_alt']};

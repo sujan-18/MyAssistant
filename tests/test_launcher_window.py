@@ -53,7 +53,9 @@ def window(qt_app: QApplication, services):
 def test_window_shows_search_results_and_filters_text(window: LauncherWindow) -> None:
     assert window.isVisible()
     assert window.search_input.hasFocus()
-    assert window.results.count() == 3
+    # The default mode is applications; file matches are shown in the separate
+    # Files & Folders scope.
+    assert window.results.count() == 2
 
     QTest.keyClicks(window.search_input, "insiders")
     assert window.results.count() == 1
@@ -150,9 +152,8 @@ def test_voice_panel_is_available_as_explicit_launcher_tab(qt_app, tmp_path) -> 
         lambda _result: None,
         voice_panel=panel,
     )
-    tabs = launcher.centralWidget()
-    assert tabs.count() == 2
-    assert tabs.tabText(1) == "Voice"
+    assert launcher.pages.count() == 4
+    assert launcher.pages.widget(launcher._page_indices["voice"]) is panel
     assert "Microphone is off" in panel.status_label.text()
     assert panel.record_button.text() == "Record"
     launcher.deleteLater()
@@ -198,8 +199,7 @@ def test_task_panel_creates_edits_completes_and_reopens_tasks(
         lambda _result: None,
         panel,
     )
-    assert launcher.centralWidget().count() == 2
-    assert launcher.centralWidget().tabText(1) == "Tasks"
+    assert launcher.pages.widget(launcher._page_indices["tasks"]) is panel
     panel.title_input.setText("Prepare release")
     panel.deadline_enabled.setChecked(True)
     panel.deadline_date.setDate(QDate(2026, 12, 1))

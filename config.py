@@ -57,7 +57,7 @@ class Settings:
     index_exclusions: tuple[Path, ...] = ()
     timezone_id: str = "UTC"
     start_with_windows: bool = False
-    global_hotkey: str = "Ctrl+Space"
+    global_hotkey: str = "Ctrl+Alt+M"
     speech_model_dir: Path | None = None
 
     @classmethod
@@ -93,7 +93,7 @@ class Settings:
         startup_value = os.environ.get("MYASSISTANT_START_WITH_WINDOWS", "false").strip().casefold()
         if startup_value not in {"true", "false", "1", "0", "yes", "no"}:
             raise ValueError("MYASSISTANT_START_WITH_WINDOWS must be true or false")
-        global_hotkey = os.environ.get("MYASSISTANT_GLOBAL_HOTKEY", "Ctrl+Space").strip()
+        global_hotkey = os.environ.get("MYASSISTANT_GLOBAL_HOTKEY", "Ctrl+Alt+M").strip()
         if not global_hotkey:
             raise ValueError("MYASSISTANT_GLOBAL_HOTKEY cannot be empty")
         configured_model_dir = os.environ.get("MYASSISTANT_SPEECH_MODEL_DIR", "").strip()

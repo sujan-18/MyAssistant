@@ -8,9 +8,9 @@ from collections.abc import Callable
 from ctypes import wintypes
 from datetime import UTC, datetime
 
-from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QTimer, Signal
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QApplication, QMenu, QStyle, QSystemTrayIcon
+from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QTimer, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from system.windows import parse_hotkey
 from todo.service import TaskService
@@ -58,14 +58,15 @@ class WindowsIntegration(QObject):
     """Own tray lifecycle, hotkey registration and reminder delivery."""
 
     show_launcher = Signal()
+    toggle_launcher = Signal()
     quit_requested = Signal()
 
-    def __init__(self, app: QApplication, task_service: TaskService, hotkey: str = "Ctrl+Space") -> None:
+    def __init__(self, app: QApplication, task_service: TaskService, hotkey: str = "Ctrl+Alt+M") -> None:
         super().__init__(app)
         self.app = app
         self.task_service = task_service
         self.tray = QSystemTrayIcon(app)
-        self.tray.setIcon(app.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+        self.tray.setIcon(self._assistant_icon())
         self.tray.setToolTip("MyAssistant")
         self.menu = QMenu()
         open_action = QAction("Open MyAssistant", self.menu)
@@ -94,8 +95,32 @@ class WindowsIntegration(QObject):
         return self.tray.isSystemTrayAvailable()
 
     def _tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
-        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self.toggle_launcher.emit()
+        elif reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.show_launcher.emit()
+
+    @staticmethod
+    def _assistant_icon() -> QIcon:
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#3478f6"))
+        painter.drawRoundedRect(1, 1, 30, 30, 9, 9)
+        painter.setBrush(QColor("#ffffff"))
+        painter.drawRoundedRect(8, 9, 16, 15, 5, 5)
+        painter.setPen(QColor("#3478f6"))
+        painter.setBrush(QColor("#3478f6"))
+        painter.drawEllipse(11, 14, 3, 3)
+        painter.drawEllipse(18, 14, 3, 3)
+        painter.setPen(QColor("#ffffff"))
+        painter.drawLine(16, 5, 16, 8)
+        painter.setBrush(QColor("#ffffff"))
+        painter.drawEllipse(14, 3, 4, 4)
+        painter.end()
+        return QIcon(pixmap)
 
     def deliver_reminders(self, now: datetime | None = None) -> int:
         if not self.tray_available or not self.tray.supportsMessages():

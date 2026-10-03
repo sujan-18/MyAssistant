@@ -58,3 +58,18 @@ def test_startup_disabled_does_not_create_files(tmp_path: Path) -> None:
     entry = tmp_path / "Startup" / "MyAssistant.vbs"
     set_startup_enabled(False, script_path=entry)
     assert not entry.parent.exists()
+
+
+def test_packaged_startup_entry_runs_the_frozen_executable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    entry = tmp_path / "Startup" / "MyAssistant.vbs"
+    executable = tmp_path / "release" / "MyAssistant.exe"
+    monkeypatch.setattr("system.windows.sys.frozen", True, raising=False)
+    monkeypatch.setattr("system.windows.sys.executable", str(executable))
+
+    set_startup_enabled(True, script_path=entry)
+
+    content = entry.read_text(encoding="utf-8")
+    assert str(executable) in content
+    assert "main.py" not in content

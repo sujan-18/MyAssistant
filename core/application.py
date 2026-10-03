@@ -91,20 +91,28 @@ class Application:
             cancel_event,
         )
 
-    def search_launcher(self, query: str, limit: int = 8) -> LauncherSearchResults:
+    def search_launcher(
+        self, query: str, limit: int = 8, scope: str = "all"
+    ) -> LauncherSearchResults:
         if self.catalog is None or self.database is None or self.database.connection is None:
             raise RuntimeError("Application must be started before searching")
-        apps = self.catalog.search(query, limit)
-        files = search_files(
-            self.database.connection,
-            query,
-            limit,
-            self.settings.index_roots,
-            self.settings.index_exclusions,
+        if scope not in {"all", "applications", "files"}:
+            raise ValueError(f"Unsupported launcher search scope: {scope!r}")
+        apps = self.catalog.search(query, limit) if scope in {"all", "applications"} else None
+        files = (
+            search_files(
+                self.database.connection,
+                query,
+                limit,
+                self.settings.index_roots,
+                self.settings.index_exclusions,
+            )
+            if scope in {"all", "files"}
+            else None
         )
         items = [
             LauncherItem(result.name, result.launch_target, "APPLICATION", result.score)
-            for result in apps.matches
+            for result in (apps.matches if apps is not None else ())
         ]
         items.extend(
             LauncherItem(
@@ -113,7 +121,7 @@ class Application:
                 "FOLDER" if result.is_directory else "FILE",
                 result.score,
             )
-            for result in files.matches
+            for result in (files.matches if files is not None else ())
         )
         items.sort(key=lambda item: (-item.score, item.name.casefold(), item.target.casefold()))
         matches = tuple(items[:limit])

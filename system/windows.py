@@ -23,14 +23,17 @@ def set_startup_enabled(enabled: bool, *, script_path: Path | None = None) -> No
         return
 
     executable = Path(sys.executable)
-    if executable.name.casefold() == "python.exe":
-        executable = executable.with_name("pythonw.exe")
-    entry = Path(__file__).resolve().parents[1] / "main.py"
+    if getattr(sys, "frozen", False):
+        arguments = ""
+    else:
+        if executable.name.casefold() == "python.exe":
+            executable = executable.with_name("pythonw.exe")
+        entry = Path(__file__).resolve().parents[1] / "main.py"
+        arguments = f' "{str(entry).replace(chr(34), chr(34) * 2)}"'
     escaped_exe = str(executable).replace('"', '""')
-    escaped_entry = str(entry).replace('"', '""')
     content = (
         'Set shell = CreateObject("WScript.Shell")\r\n'
-        f'shell.Run """{escaped_exe}"" ""{escaped_entry}""", 0, False\r\n'
+        f'shell.Run """{escaped_exe}""{arguments.replace(chr(34), chr(34) * 2)}", 0, False\r\n'
     )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")

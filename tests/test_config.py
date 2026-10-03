@@ -79,7 +79,7 @@ def test_windows_integration_settings_are_opt_in_and_configurable(
     monkeypatch.delenv("MYASSISTANT_GLOBAL_HOTKEY", raising=False)
     settings = Settings.load()
     assert settings.start_with_windows is False
-    assert settings.global_hotkey == "Ctrl+Space"
+    assert settings.global_hotkey == "Ctrl+Alt+M"
 
     monkeypatch.setenv("MYASSISTANT_START_WITH_WINDOWS", "yes")
     monkeypatch.setenv("MYASSISTANT_GLOBAL_HOTKEY", "Ctrl+Alt+M")
