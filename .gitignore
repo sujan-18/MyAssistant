@@ -1,0 +1,50 @@
+# Python environments and caches
+.venv/
+venv/
+.tools/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Build and package output
+build/
+dist/
+*.spec
+*.egg-info/
+wheelhouse/
+
+# Application runtime state and logs
+logs/
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.log
+local_settings.*
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+secrets.*
+*.pem
+*.key
+
+# Downloaded speech/AI assets
+models/
+*.onnx
+*.bin
+*.gguf
+
+# IDE and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
