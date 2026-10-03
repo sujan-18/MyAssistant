@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+from collections.abc import Callable
 from ctypes import wintypes
 from datetime import UTC, datetime
 
@@ -18,12 +19,12 @@ from todo.service import TaskService
 class HotkeyFilter(QAbstractNativeEventFilter):
     """Register one system-wide chord and receive its WM_HOTKEY message."""
 
-    activated = Signal()
     _HOTKEY_ID = 0x4D41
     _WM_HOTKEY = 0x0312
 
-    def __init__(self, hotkey: str = "Ctrl+Space") -> None:
+    def __init__(self, hotkey: str, on_activated: Callable[[], None]) -> None:
         super().__init__()
+        self._on_activated = on_activated
         self._user32 = None
         self._registered = False
         if os.name != "nt":
@@ -43,7 +44,7 @@ class HotkeyFilter(QAbstractNativeEventFilter):
             return False, 0
         native_message = ctypes.cast(int(message), ctypes.POINTER(wintypes.MSG)).contents
         if native_message.message == self._WM_HOTKEY and native_message.wParam == self._HOTKEY_ID:
-            self.activated.emit()
+            self._on_activated()
             return True, 0
         return False, 0
 
@@ -80,8 +81,7 @@ class WindowsIntegration(QObject):
         self.tray.setContextMenu(self.menu)
         self.tray.activated.connect(self._tray_activated)
         self.tray.show()
-        self.hotkey_filter = HotkeyFilter(hotkey)
-        self.hotkey_filter.activated.connect(self.show_launcher)
+        self.hotkey_filter = HotkeyFilter(hotkey, self.show_launcher.emit)
         app.installNativeEventFilter(self.hotkey_filter)
         self.reminder_timer = QTimer(self)
         self.reminder_timer.setInterval(30_000)

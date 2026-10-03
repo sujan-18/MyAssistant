@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import ctypes
+from ctypes import wintypes
 from pathlib import Path
 
 import pytest
 
 from system.windows import parse_hotkey, set_startup_enabled
+from ui import windows_integration
 
 
 @pytest.mark.parametrize(
@@ -23,6 +26,22 @@ def test_parse_hotkey(hotkey: str, expected: tuple[int, int]) -> None:
 def test_parse_hotkey_rejects_invalid_chords(hotkey: str) -> None:
     with pytest.raises(ValueError):
         parse_hotkey(hotkey)
+
+
+def test_hotkey_filter_calls_callback_for_wm_hotkey(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(windows_integration.os, "name", "posix")
+    activated: list[bool] = []
+    hotkey_filter = windows_integration.HotkeyFilter("Ctrl+Space", lambda: activated.append(True))
+    hotkey_filter._registered = True
+
+    message = wintypes.MSG()
+    message.message = hotkey_filter._WM_HOTKEY
+    message.wParam = hotkey_filter._HOTKEY_ID
+
+    handled, result = hotkey_filter.nativeEventFilter(None, ctypes.addressof(message))
+
+    assert (handled, result) == (True, 0)
+    assert activated == [True]
 
 
 def test_startup_entry_is_opt_in_and_removable(tmp_path: Path) -> None:

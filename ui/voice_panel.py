@@ -98,6 +98,7 @@ class VoicePanel(QWidget):
 
     def __init__(self, model_dir: Path) -> None:
         super().__init__()
+        self.setObjectName("VoicePanel")
         self.recognizer = FasterWhisperRecognizer(model_dir)
         self._capture_worker: CaptureWorker | None = None
         self._transcription_worker: TranscriptionWorker | None = None
@@ -105,16 +106,21 @@ class VoicePanel(QWidget):
         self._speech_worker: SpeechOutputWorker | None = None
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 22, 22, 18)
+        layout.setSpacing(12)
         self.status_label = QLabel("Microphone is off. Recording starts only when you press Record.")
+        self.status_label.setObjectName("PanelStatus")
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
         model_info = QLabel(
             "Local model: Whisper tiny multilingual (about 78 MB). CPU int8; no GPU required."
         )
+        model_info.setObjectName("Description")
         model_info.setWordWrap(True)
         layout.addWidget(model_info)
 
         self.record_button = QPushButton("Record")
+        self.record_button.setObjectName("PrimaryButton")
         self.record_button.clicked.connect(self._toggle_recording)
         layout.addWidget(self.record_button)
         self.download_button = QPushButton("Download model (one-time, internet required)")
@@ -126,6 +132,7 @@ class VoicePanel(QWidget):
         self.transcript_view.setPlaceholderText("Your transcript preview will appear here.")
         layout.addWidget(self.transcript_view, 1)
         self.speak_button = QPushButton("Speak transcript")
+        self.speak_button.setObjectName("PrimaryButton")
         self.speak_button.setEnabled(False)
         self.speak_button.clicked.connect(self._speak_transcript)
         layout.addWidget(self.speak_button)

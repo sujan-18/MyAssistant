@@ -34,12 +34,15 @@ from todo.service import (
 class TaskPanel(QWidget):
     def __init__(self, service: TaskService, timezone_id: str = "UTC") -> None:
         super().__init__()
+        self.setObjectName("TaskPanel")
         self.service = service
         self.default_timezone = timezone_id
         self._editing_task_id: int | None = None
         self._tasks: dict[int, Task] = {}
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 22, 22, 18)
+        layout.setSpacing(11)
         heading = QLabel("Tasks and deadlines")
         heading.setObjectName("TaskHeading")
         layout.addWidget(heading)
@@ -105,9 +108,11 @@ class TaskPanel(QWidget):
 
         buttons = QHBoxLayout()
         self.save_button = QPushButton("Add task")
+        self.save_button.setObjectName("PrimaryButton")
         self.clear_button = QPushButton("Clear")
         self.complete_button = QPushButton("Complete")
         self.delete_button = QPushButton("Delete")
+        self.delete_button.setObjectName("DangerButton")
         self.complete_button.setEnabled(False)
         self.delete_button.setEnabled(False)
         buttons.addWidget(self.save_button)
@@ -118,6 +123,7 @@ class TaskPanel(QWidget):
         layout.addLayout(buttons)
 
         self.status = QLabel("Tasks are stored locally.")
+        self.status.setObjectName("PanelStatus")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
 

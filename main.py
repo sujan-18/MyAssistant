@@ -27,13 +27,13 @@ def main() -> int:
         model_dir = services.settings.speech_model_dir or (
             services.settings.paths.data_dir / "models" / "faster-whisper-tiny"
         )
+        voice_panel = VoicePanel(model_dir)
         window = LauncherWindow(
             services.search_launcher,
             services.open_search_result,
             TaskPanel(services.task_service, services.settings.timezone_id),
-            VoicePanel(model_dir),
+            voice_panel,
         )
-        voice_panel = window.centralWidget().widget(2)
         window.hidden.connect(voice_panel.stop_recording)
         qt_application.aboutToQuit.connect(voice_panel.close)
         if sys.platform == "win32":
