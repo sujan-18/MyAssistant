@@ -11,6 +11,7 @@ from ui.index_worker import IndexWorker
 from ui.task_panel import TaskPanel
 from ui.windows_integration import WindowsIntegration
 from system.windows import set_startup_enabled
+from ui.voice_panel import VoicePanel
 
 
 def main() -> int:
@@ -23,11 +24,18 @@ def main() -> int:
         services.start()
         if services.task_service is None:
             raise RuntimeError("Task service did not initialize")
+        model_dir = services.settings.speech_model_dir or (
+            services.settings.paths.data_dir / "models" / "faster-whisper-tiny"
+        )
         window = LauncherWindow(
             services.search_launcher,
             services.open_search_result,
             TaskPanel(services.task_service, services.settings.timezone_id),
+            VoicePanel(model_dir),
         )
+        voice_panel = window.centralWidget().widget(2)
+        window.hidden.connect(voice_panel.stop_recording)
+        qt_application.aboutToQuit.connect(voice_panel.close)
         if sys.platform == "win32":
             set_startup_enabled(services.settings.start_with_windows)
             windows = WindowsIntegration(qt_application, services.task_service, services.settings.global_hotkey)
@@ -36,6 +44,7 @@ def main() -> int:
             window.set_tray_available(windows.tray_available)
             if windows.hotkey_filter.error and services.logger is not None:
                 services.logger.warning("%s", windows.hotkey_filter.error)
+                window.statusBar().showMessage(windows.hotkey_filter.error, 10_000)
         window.exit_requested.connect(qt_application.quit)
         window.result_activated.connect(
             lambda result: logging.getLogger("myassistant").info(

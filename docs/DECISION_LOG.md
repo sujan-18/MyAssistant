@@ -2,7 +2,7 @@
 
 **Document version:** 1.1  
 **Last updated:** 2026-10-02  
-**Status:** CPython 3.14.8 x64, PySide6 6.11.2, tzdata 2026.4, pytest 9.1.1 and SQLite FTS5 are in use. ADR-002, ADR-003, ADR-004, ADR-012, ADR-013 and ADR-014 are selected; remaining proposals keep their individual status. 43 tests pass; one symlink test is skipped due to Windows permissions. Synthetic run: 1,021 entries indexed in 0.0726 s and queried in 0.000606 s. Interactive desktop and large-drive behavior remain unverified. See [TECHNOLOGY_EVALUATION.md](TECHNOLOGY_EVALUATION.md) for the original audit.
+**Status:** CPython 3.14.8 x64, PySide6 6.11.2, tzdata 2026.4, pytest 9.1.1 and SQLite FTS5 are in use; optional voice packages are installed. ADR-002, ADR-003, ADR-004, ADR-005, ADR-006, ADR-007, ADR-009, ADR-012, ADR-013, ADR-014, ADR-015 and ADR-016 are selected. The suite has 62 passing tests and one symlink skip. The Phase 8 software implementation is complete. Model download, actual microphone capture and audible TTS remain unverified; the Hugging Face endpoint timed out during an HTTP HEAD check on 2026-10-03. `pip check` is clean. See [TECHNOLOGY_EVALUATION.md](TECHNOLOGY_EVALUATION.md) for the original audit and later phase updates.
 
 ## ADR-001 — Build a native Python desktop application
 
@@ -47,14 +47,14 @@
 
 ## ADR-006 — Speech recognition remains an optional, replaceable adapter
 
-- **Status:** Proposed; no engine selected for production
+- **Status:** Selected initial path: faster-whisper CPU/int8, with a replaceable recognizer interface
 - **Decision:** Keep speech behind a `SpeechRecognizer` interface. Evaluate `whisper.cpp` first for a local CPU-capable prototype; compare faster-whisper CPU/int8 and Vosk with real microphone samples. Treat GPU inference as an optional optimization.
 - **Reason:** The detected MX330 has 2 GB VRAM, making larger GPU models a poor default. Whisper-family quality is attractive, but CTranslate2 CUDA dependencies and version matching add deployment complexity. Vosk is light and streaming-oriented but may trade transcription quality and language flexibility. No model is downloaded or installed in Phase 0.
 - **Consequences:** Benchmark latency, memory, accuracy, noise robustness, model license and redistribution separately on this machine. Provide a no-voice configuration and clear missing-model errors.
 
 ## ADR-007 — TTS uses Windows voices initially; Piper is not the default
 
-- **Status:** Proposed
+- **Status:** Selected and implemented with Windows SAPI through optional pywin32
 - **Decision:** First TTS adapter should use installed Windows speech voices through a supported Windows interface, subject to a small compatibility proof. Keep offline neural TTS as a later optional backend.
 - **Alternatives:** Piper, pyttsx3/SAPI, cloud TTS.
 - **Reason:** Existing Windows voices avoid model downloads and GPU requirements. The original `rhasspy/piper` repository is archived (October 2025), and voice/model licenses vary, so selecting it as a default would need extra maintenance and licensing review. Cloud TTS conflicts with local-first defaults.
@@ -113,3 +113,19 @@
 - **Evidence:** `ZoneInfo("Asia/Kathmandu")` raised `ZoneInfoNotFoundError` on the machine before installation; it resolves after installing tzdata. Python’s documentation recommends declaring tzdata on Windows when IANA timezone data is required. The selected wheel is platform-independent and Apache-2.0.
 - **Alternatives:** Store only UTC/fixed offsets; query Windows timezone APIs and maintain a Windows-to-IANA map; add a larger third-party datetime library.
 - **Consequences:** Adds a small pure-data runtime dependency that should be updated when timezone rules change. Local deadline input rejects nonexistent DST wall times and asks the user to choose a fold for ambiguous times. The project stores UTC instants plus the IANA zone ID.
+
+## ADR-015 — Use Qt tray messages and an opt-in Startup-folder script for Phase 7
+
+- **Status:** Selected and implemented; interactive Windows verification remains.
+- **Decision:** Use `QSystemTrayIcon` for launcher access and task reminders; use a hidden per-user Startup-folder VBScript only when `MYASSISTANT_START_WITH_WINDOWS=true`. Use native Win32 `RegisterHotKey` with a configurable `MYASSISTANT_GLOBAL_HOTKEY` (default `Ctrl+Space`).
+- **Alternatives:** Global keyboard hooks, registry Run key, Task Scheduler, native actionable toast integration.
+- **Reason:** Qt is already a runtime dependency; `RegisterHotKey` is the narrow OS facility for this behavior; the Startup-folder script is visible and reversible without admin rights. Native toast actions need a packaging identity and are deferred.
+- **Consequences:** A hotkey conflict is logged and leaves the app usable. Reminder delivery checks tray/message availability and persists deduplication only when message delivery can be attempted. Without a tray, closing exits rather than leaving a hidden process. The source-based startup target must be revised for packaged distributions.
+
+## ADR-016 — Add explicit, local CPU-first speech input and output
+
+- **Status:** Selected and implemented as the Phase 8 initial path; model/audio smoke checks remain.
+- **Decision:** Use the optional `sounddevice` 0.5.6 package for user-triggered push-to-talk; use faster-whisper 1.2.1/CTranslate2 4.8.2 on CPU int8; offer the multilingual Whisper tiny model at a pinned revision; use installed Windows SAPI voices through optional pywin32 312 for user-triggered TTS.
+- **Alternatives:** whisper.cpp CLI, Vosk, CUDA inference, always-on microphone, cloud STT/TTS, neural TTS.
+- **Reason:** Current Windows/Python 3.14 wheels were installed and imported successfully. This chain has a direct Python API and CPU path, fits the MX330's 2 GB VRAM limitation, and supports local processing. The small model is MIT licensed and supports multilingual recognition. SAPI avoids another voice model and package beyond the optional Windows bindings.
+- **Consequences:** Voice dependencies are optional and do not prevent app startup if absent. Microphone capture is explicit, capped at 60 seconds, stored temporarily and deleted after transcription. Model download is separate and requires a confirmation; transcribed text remains preview-only until Phase 9. No CUDA or model weights are installed automatically. The initial model download stalled before receiving `model.bin`; real transcription and audio output still need smoke testing.

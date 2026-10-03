@@ -58,6 +58,7 @@ class Settings:
     timezone_id: str = "UTC"
     start_with_windows: bool = False
     global_hotkey: str = "Ctrl+Space"
+    speech_model_dir: Path | None = None
 
     @classmethod
     def load(cls) -> Settings:
@@ -95,6 +96,10 @@ class Settings:
         global_hotkey = os.environ.get("MYASSISTANT_GLOBAL_HOTKEY", "Ctrl+Space").strip()
         if not global_hotkey:
             raise ValueError("MYASSISTANT_GLOBAL_HOTKEY cannot be empty")
+        configured_model_dir = os.environ.get("MYASSISTANT_SPEECH_MODEL_DIR", "").strip()
+        model_dir = Path(configured_model_dir).expanduser() if configured_model_dir else None
+        if model_dir is not None and not model_dir.is_absolute():
+            raise ValueError("MYASSISTANT_SPEECH_MODEL_DIR must be an absolute path")
         return cls(
             paths=AppPaths.from_environment(),
             log_level=level,
@@ -103,4 +108,5 @@ class Settings:
             timezone_id=timezone_id,
             start_with_windows=startup_value in {"true", "1", "yes"},
             global_hotkey=global_hotkey,
+            speech_model_dir=model_dir.resolve() if model_dir is not None else None,
         )

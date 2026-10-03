@@ -2,8 +2,8 @@
 
 **Document version:** 1.2  
 **Last updated:** 2026-10-02 (Asia/Katmandu)  
-**Project status:** Phase 6 task management implemented with SQLite persistence, task editing, deadlines, countdowns and restart-safe reminder rules.  
-**Document status:** CPython 3.14.8, PySide6 6.11.2, tzdata 2026.4 and pytest 9.1.1 are installed. 43 tests pass; one symlink test is skipped because this Windows environment does not permit symlink creation. Synthetic file search benchmark: 1,021 entries indexed in 0.0726 s; FTS5 query in 0.000606 s. Interactive desktop verification remains.
+**Project status:** Phase 7 Windows integration implemented, including global hotkey, tray, reminders and opt-in startup.
+**Document status:** CPython 3.14.8, PySide6 6.11.2, tzdata 2026.4 and pytest 9.1.1 are installed. 55 tests pass; one symlink test is skipped because this Windows environment does not permit symlink creation. Interactive shell behavior remains to be verified manually.
 
 This document is the project’s source of truth. The status terms used here mean:
 
@@ -20,7 +20,7 @@ This document is the project’s source of truth. The status terms used here mea
 
 MyAssistant is a personal, local-first Windows desktop assistant. The intended product combines a fast keyboard launcher, configurable file and application search, task/deadline tracking, reminders, and later optional voice input, speech output and natural-language interpretation. It is intended to be a cohesive modular application rather than a collection of scripts.
 
-The repository contains the Phase 2 bootstrap, a PySide6 launcher, Phase 4 application discovery/search/launch, Phase 5 configured-root file/folder search, and Phase 6 task/deadline management. Windows hotkeys, tray notifications, voice, packaging and later integrations remain future work. The whole-stack audit and implementation updates are in [docs/TECHNOLOGY_EVALUATION.md](docs/TECHNOLOGY_EVALUATION.md).
+The repository contains the Phase 2 bootstrap, a PySide6 launcher, Phase 4 application discovery/search/launch, Phase 5 configured-root file/folder search, Phase 6 task/deadline management, and Phase 7 Windows hotkey/tray/reminder/startup integration. Voice, packaging and later integrations remain future work. The whole-stack audit and implementation updates are in [docs/TECHNOLOGY_EVALUATION.md](docs/TECHNOLOGY_EVALUATION.md).
 
 ## 2. Problem, goals and non-goals
 
@@ -96,7 +96,7 @@ Representative flows:
 | F-06 | Launch apps/files/folders through dedicated validated adapters. | **Partially implemented:** explicitly selected Start Menu shortcut opener; files/folders and richer validation remain planned. |
 | F-07 | Ambiguous or low-confidence targets require user selection. | Designed |
 | F-08 | Task CRUD, completion/reopen, filtering/search, priority, tags and optional project path. | **Implemented:** SQLite service and Tasks tab support add/edit/delete, open/completed filters, text search, priorities, tags and absolute project paths. |
-| F-09 | Timezone-aware countdown, past-due and completed-task behavior, restart-safe reminders. | **Implemented:** aware deadlines are stored in UTC with an IANA timezone ID; DST gaps/overlaps are handled explicitly; countdowns recalculate from UTC; reminder windows have persistent deduplication records. Notification/tray delivery is Phase 7. |
+| F-09 | Timezone-aware countdown, past-due and completed-task behavior, restart-safe reminders. | **Implemented:** aware deadlines are stored in UTC with an IANA timezone ID; DST gaps/overlaps are handled explicitly; countdowns recalculate from UTC; reminder windows have persistent deduplication records and tray message delivery. |
 | F-10 | Moveable/resizable task widget, tray, optional topmost, configurable appearance and notifications. | Future |
 | F-11 | Optional Windows startup and greeting; greeting, TTS and notices independently configurable. | Planned |
 | F-12 | Replaceable offline speech recognition and text-to-speech. | Future |
@@ -155,6 +155,10 @@ flowchart LR
 
 Configured roots and exclusions drive a cancellable background traversal. The current implementation stores path, parent, name, extension, directory flag, modified time and file size; it does not yet store stable file identity. Access-denied and transient errors are counted without aborting all roots. Hidden/system entries and symlinks are skipped; stale rows are removed only after a root finishes without traversal errors. Writes are batched in groups of 250. A separate Qt worker connection keeps scans off the UI thread. FTS5 searches names and paths, not file contents. Root selection and extra absolute exclusions are configured with `MYASSISTANT_INDEX_ROOTS` and `MYASSISTANT_INDEX_EXCLUSIONS`, using Windows `;` separators. No roots are indexed by default. Current scan runs at application startup when roots are configured; performance on large trees and routine rescan policy need further review.
 
+### Windows shell integration
+
+The application registers `Ctrl+Space` globally by default using Win32 `RegisterHotKey`; override it with `MYASSISTANT_GLOBAL_HOTKEY` using a modifier plus one key (for example `Ctrl+Alt+M`). Windows may reject a chord already registered by another program; the app logs the conflict and remains usable. The tray menu opens the launcher, checks task reminders and exits. Closing hides the window when a system tray is available, and exits if there is no tray. Task reminder delivery is checked on startup and every 30 seconds; a reminder delivery record is saved only when tray message support is available. Startup is off by default; set `MYASSISTANT_START_WITH_WINDOWS=true` to add a per-user Startup-folder script, or `false` to remove it. This source-based startup entry must be adapted for packaged distribution.
+
 The first proposal is an explicit walker plus persisted metadata/FTS5. Compare it with Windows Search and NTFS USN Journal before investing in incremental infrastructure. A later hybrid may use `watchdog` or USN to mark roots dirty and periodic reconciliation to recover missed events. Windows Search can only cover indexed scopes and may not meet user-controlled exclusion/ranking needs. USN is NTFS-specific and requires careful journal-wrap and identity handling; it is not the Phase 0 implementation choice.
 
 ### Applications
@@ -163,7 +167,7 @@ Discover Start Menu `.lnk` entries via Windows shell locations and known/registe
 
 ### Task/deadline flow
 
-The Tasks tab calls `TaskService` methods; create/update and tag changes are transactional. Deadlines are entered as a local wall time plus configured IANA timezone (`MYASSISTANT_TIMEZONE`, default `UTC`), then stored as a UTC instant and timezone ID. Nonexistent DST times are rejected; repeated times require choosing the first or second occurrence. Countdown display recalculates from UTC every 30 seconds, so sleep/restart/time changes do not accumulate drift. Past due displays “Deadline passed”; completed tasks display “Completed”. Reminder windows (one hour, 15 minutes and overdue by default) are deduplicated in SQLite using deadline-specific keys; notification delivery is left to Phase 7. Windows does not provide IANA zone data to this Python runtime, so `tzdata` supplies that database.
+The Tasks tab calls `TaskService` methods; create/update and tag changes are transactional. Deadlines are entered as a local wall time plus configured IANA timezone (`MYASSISTANT_TIMEZONE`, default `UTC`), then stored as a UTC instant and timezone ID. Nonexistent DST times are rejected; repeated times require choosing the first or second occurrence. Countdown display recalculates from UTC every 30 seconds, so sleep/restart/time changes do not accumulate drift. Past due displays “Deadline passed”; completed tasks display “Completed”. Reminder windows (one hour, 15 minutes and overdue by default) are deduplicated in SQLite using deadline-specific keys, then delivered through tray messages when available. Windows does not provide IANA zone data to this Python runtime, so `tzdata` supplies that database.
 
 ### Voice and TTS
 
@@ -188,22 +192,22 @@ Research checked on 2026-10-02. Versions and repository status change; repeat th
 
 **Compatibility result:** PySide6 6.11.2 supplies a Windows x64 `cp310-abi3` wheel, compatible with standard CPython 3.14, and has been installed in the project `.venv`. CPython 3.14.8 x64 is the selected baseline. GUI and later-selected audio stack smoke checks remain for the relevant implementation phases. Python 3.13 is a fallback, not the preferred pin absent a demonstrated blocker.
 
-### Speech-to-text (future; no package/model installed)
+### Speech-to-text (Phase 8 implementation)
 
 | Candidate | Current evidence | Strengths | Constraints and fit |
 |---|---|---|---|
-| faster-whisper | SYSTRAN project; 1.2.1 observed, with CTranslate2 4.8.2 publishing a CPython 3.14 Windows wheel. GPU stack documentation targets CUDA 12.x. [Project](https://github.com/SYSTRAN/faster-whisper), [CTranslate2 wheel matrix](https://pypi.org/project/ctranslate2/) | Strong Whisper accuracy/model choices, Python API, CPU/int8 and GPU paths. | Model files are sizable; CUDA/Python wheels must align. MX330 2 GB VRAM means CPU/int8 is default and GPU only a small-model experiment. CUDA 13 drops Pascal support. License/model licenses must be checked per selected artifact. |
+| faster-whisper | **Selected:** faster-whisper 1.2.1 + CTranslate2 4.8.2; both installed as optional `voice` extra. Native CPython 3.14 Windows x64 wheel verified by installation/import. [Project](https://github.com/SYSTRAN/faster-whisper), [CTranslate2 wheel](https://pypi.org/project/ctranslate2/4.8.2/) | Local multilingual transcription with CPU int8; Py3 API. | The app captures explicitly and stores audio only in a temporary WAV deleted after transcription. CPU is mandatory; GPU is not used. One-time model download needed before offline use. |
 | whisper.cpp | Active `ggml-org` project; current observed release v1.9.4; Windows release workflows and CUDA backends are present. [Releases](https://github.com/ggml-org/whisper.cpp/releases), [project](https://github.com/ggml-org/whisper.cpp) | Native CPU quantization, offline, Windows support and optional CUDA; avoids requiring a large Python ML stack. | Integration is via native library/CLI bindings; ship and audit native binaries/model licenses. GPU support still has CUDA deployment details. |
 | Vosk | Python package metadata shows 0.3.75, Windows x64 support and Apache-2.0 API. [Setup](https://github.com/alphacep/vosk-api/blob/master/python/setup.py), [license](https://github.com/alphacep/vosk-api/blob/master/COPYING) | Offline, streaming-oriented, relatively light CPU use, no GPU needed. | Model accuracy/language/model sizes vary; package/release cadence should be verified at selection time. |
 | Windows speech APIs | Windows exposes installed speech facilities, but API availability and speech-recognition support differ between WinRT/SAPI generations and language packs. | No external model distribution when available; close Windows integration. | Must prove a supported desktop Python integration and actual local language/device availability; do not assume it is a universal recognizer. |
 
-**Proposed approach:** no engine selected for production. Run a small measured bake-off on the actual microphone and hardware: transcription quality for names/project commands, first-result latency, steady CPU/RAM/VRAM, model size, offline operation and clean Windows packaging. CPU is the required baseline; GPU is optional and would need a CUDA 12/sm_61-compatible path, not CUDA 13. Keep push-to-talk and CPU fallback. Do not download models in Phase 0.
+**Selected initial path:** optional `sounddevice` 0.5.6 capture + `faster-whisper` 1.2.1 / CTranslate2 4.8.2, running multilingual tiny on CPU int8. The 78.2 MB model is MIT licensed and pinned to revision `d90ca5fe260221311c53c58e660288d3deb8d356`; download is offered only after a confirmation prompt. The app has push-to-talk, 60 second cap, converts the detected microphone rate to 16 kHz, and deletes the temporary WAV after transcription. It presents a transcript preview and does not execute any recognized text; command interpretation is Phase 9. The device query found an internal Cirrus microphone (2 input channels, 44.1 kHz). Direct capture and real-speech transcription have not yet been run. The model download attempt did not transfer `model.bin` in this environment, so model inference validation remains open. CPU is mandatory; CUDA/GPU remains deferred for this 2 GB MX330.
 
-### Text-to-speech (future)
+### Text-to-speech (Phase 8 implementation)
 
 | Candidate | Evaluation | Recommendation |
 |---|---|---|
-| Installed Windows voices through Windows speech synthesis/SAPI | Local and no model download, latency usually low; naturalness/languages depend on voices installed. Microsoft documents `Windows.Media.SpeechSynthesis` and `SpeechSynthesizer`. [Microsoft docs](https://learn.microsoft.com/en-us/uwp/api/windows.media.speechsynthesis) | First compatibility prototype; exact API and packaged desktop access remain open. |
+| Installed Windows voices using SAPI via pywin32 | **Selected:** pywin32 312, optional voice extra; CPython 3.14 Windows x64 wheel installed. [PyPI](https://pypi.org/project/pywin32/312/), [Microsoft Speech API](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ms723627(v=vs.85)) | Local, no model or network. COM is initialized on the background worker and speech starts only when the user selects Speak. A read-only enumeration found two installed voices; audible output still needs a user-facing smoke check. |
 | Piper | Historically lightweight/offline and voice choices exist, but original `rhasspy/piper` repo was archived 2025-10-06. Its code license does not automatically settle individual voice/model rights. [Archive/releases](https://github.com/rhasspy/piper/releases), [voice list](https://github.com/rhasspy/piper/blob/master/VOICES.md) | Not the default. Reassess active forks, model lineage and license before adoption. |
 | Cloud TTS | Potentially natural and simple API use. | Future optional provider only; adds network, recurring cost and voice-data disclosure. |
 
@@ -307,7 +311,7 @@ Handle deleted/renamed entries by reconciliation and path validation. Skip/retry
 
 ## 13. Voice architecture (future)
 
-Interfaces: `AudioInput` (device enumeration/capture), `SpeechRecognizer` (audio frames/file → transcript and confidence), and optional VAD. Keep model loading separate from app startup; user activates microphone explicitly initially. Configuration selects engine/model/device/CPU-vs-GPU and model directory. Surface missing model, unavailable microphone, unavailable GPU, and recognition failure as recoverable states.
+Phase 8 introduces push-to-talk capture and a replaceable recognizer boundary. The Voice tab handles missing model, missing package, microphone errors and inference errors without stopping the launcher. Model loading is lazy; no model/network work occurs at app startup. The selected initial output is explicit SAPI speech; the user can preview text and request speech output. Recognized text never bypasses Phase 9 validation.
 
 The MX330 has 2 GB VRAM and Pascal-class compute capability 6.1. CUDA 13 removed Maxwell/Pascal/Volta support, even though the installed driver reports CUDA 13.0 compatibility. GPU support is not a baseline requirement. Begin offline CPU quantized benchmarking; try a small GPU model only if it fits alongside Qt/desktop use and shows material latency improvement, using an engine/runtime build that explicitly supports sm_61 (likely a CUDA 12-era path). Do not package/download model weights without checking their individual terms and presenting storage requirements. See [Technology Evaluation](docs/TECHNOLOGY_EVALUATION.md).
 
@@ -453,9 +457,9 @@ Configuration is currently loaded from environment variables. `MYASSISTANT_INDEX
 | 3 — Desktop launcher | PySide6 window, input, results, keyboard navigation, hide/show and clean exit. | Window behavior and keyboard tests pass; Windows interactive check remains. | **Complete:** launcher lifecycle and keyboard interaction have automated offscreen coverage. |
 | 4 — Application search and launching | Discovery, catalog, ranking and launch adapters integrated with the UI. | Search/ambiguity tests and mocked Windows launch checks pass; actual Start Menu launch remains an interactive smoke check. | **Implemented:** UI searches the local Start Menu catalog and opens only a selected, revalidated shortcut. |
 | 5 — File/folder search | Configured roots, indexing, FTS/search/ranking, exclusions/reconciliation. | Isolated temp-tree tests and measured index/query performance. | **Implemented:** 35 tests pass, 1 symlink test skipped due to host permissions; 1,021-entry synthetic scan/query measured. Large-drive and interactive verification remain. |
-| 6 — Tasks / Todo | Task persistence, deadlines, countdown and reminder rules. | CRUD, timezone, migration and restart tests. | **Implemented:** service and Tasks tab are covered; DST, countdown, reminder restart/dedup and CRUD tests pass. Tray/system notification delivery remains Phase 7. |
-| 7 — Windows integration | Global hotkey, tray, notifications and opt-in startup. | Conflict/restart, install/uninstall and preference checks. | Planned |
-| 8 — Speech and TTS | Optional microphone, selected local STT pipeline and replaceable speech output. | Hardware bake-off, local processing and recoverable failure paths. | Future |
+| 6 — Tasks / Todo | Task persistence, deadlines, countdown and reminder rules. | CRUD, timezone, migration and restart tests. | **Implemented:** service and Tasks tab are covered; DST, countdown, reminder restart/dedup and CRUD tests pass. Reminder notification delivery was added in Phase 7. |
+| 7 — Windows integration | Global hotkey, tray, notifications and opt-in startup. | Conflict/restart, install/uninstall and preference checks. | **Implemented:** native `RegisterHotKey` adapter, Qt tray menu, durable reminder delivery and opt-in per-user Startup-folder script; 9 integration unit tests pass. Interactive shell behavior and shortcut conflicts still need manual Windows verification. |
+| 8 — Speech and TTS | Optional microphone, selected local STT pipeline and replaceable speech output. | Hardware bake-off, local processing and recoverable failure paths. | **Implementation complete; acceptance pending:** optional voice extra, push-to-talk Voice tab, local CPU/int8 recognizer adapter, explicit pinned model download, transcript preview, and opt-in Windows SAPI output implemented. 62 tests pass, 1 skipped. Hugging Face model transfer times out in this environment, so local inference is unverified. Microphone capture and audible TTS still require an interactive desktop check. |
 | 9 — AI layer | Optional typed action proposal, validation and safe execution. | Adversarial tests and explicit privacy choice. | Future |
 | 10 — Polish and reliability | Performance, responsiveness, accessibility and failure recovery review. | Measured startup/resource/search behavior and resolved critical issues. | Future |
 | 11 — Comprehensive testing | Unit, integration, UI and regression coverage across implemented features. | Full test suite passes on supported Windows environment. | Future |
@@ -505,11 +509,11 @@ See [docs/DECISION_LOG.md](docs/DECISION_LOG.md). Current proposals cover the Py
 | Application catalog and launcher backend | Start Menu discovery, SQLite catalog refresh, ranked search, ambiguity detection and selected `.lnk` opener implemented in `launcher/`; catalog pruning occurs only after complete discovery. |
 | Desktop launcher UI | PySide6 window with live application results, ambiguity notice, arrow/Enter/Escape handling, hide/reopen and exit action implemented in `ui/`; offscreen UI tests pass. |
 | File/folder search/indexing | Configured-root scanner, FTS5 name/path retrieval, exclusions, hidden/system and symlink skipping, stale reconciliation, background worker and selected indexed path opener implemented. |
-| Tray, global hotkey, startup, notifications | Not implemented; Phase 7. |
-| Todo/countdown/reminders | SQLite-backed CRUD, editing, completion/reopen, tags, filtering, timezone-aware deadlines, countdowns, and durable reminder deduplication implemented in `todo/` and `ui/task_panel.py`. External notification delivery is Phase 7. |
-| Speech recognition and TTS | Not implemented; no models downloaded. |
+| Tray, global hotkey, startup, notifications | Implemented in `ui/windows_integration.py` and `system/windows.py`: configurable Win32 hotkey (default Ctrl+Space), tray open/check reminders/exit menu, periodic reminder delivery, and opt-in per-user Startup-folder script (`MYASSISTANT_START_WITH_WINDOWS=true`). Requires interactive Windows verification. |
+| Todo/countdown/reminders | SQLite-backed CRUD, editing, completion/reopen, tags, filtering, timezone-aware deadlines, countdowns, durable reminder deduplication, and tray-message delivery implemented in `todo/` and `ui/`. |
+| Speech recognition and TTS | Push-to-talk, CPU/int8 faster-whisper adapter, explicit model download, preview-only transcript and explicit Windows SAPI output implemented in `voice/` and `ui/voice_panel.py`. Optional dependencies installed. No model weights are present yet; the actual capture/recognition/audible output smoke checks remain. |
 | AI integration | Not implemented; no provider selected. |
-| Tests | 43 pass and 1 is skipped because Windows symlink creation is restricted; coverage includes Phase 2-6 services, migrations, deadlines, reminders and offscreen UI. Large-root behavior and interactive desktop integration remain. |
+| Tests | 62 pass and 1 is skipped because Windows symlink creation is restricted; coverage includes Phase 2-8 services, migration, reminders, voice audio normalization and offscreen UI. Large-root behavior and interactive Windows audio remain. |
 | Packaging and executable | Not implemented. |
 
 ## 33. Sources and review record

@@ -14,6 +14,7 @@ from ui.index_worker import IndexWorker
 from ui.launcher_window import LauncherWindow, create_application
 from ui.task_panel import TaskPanel
 from todo.service import TaskService
+from ui.voice_panel import VoicePanel
 
 
 @pytest.fixture(scope="module")
@@ -122,15 +123,40 @@ def test_close_button_hides_and_quit_action_requests_application_exit(
 ) -> None:
     exit_requests: list[bool] = []
     window.exit_requested.connect(lambda: exit_requests.append(True))
+    window.set_tray_available(True)
 
     window.close()
     qt_app.processEvents()
     assert not window.isVisible()
-    assert exit_requests == [True]
+    assert exit_requests == []
 
     window.show_and_focus()
     QTest.keyClick(window.search_input, Qt.Key.Key_Q, Qt.KeyboardModifier.ControlModifier)
-    assert exit_requests == [True, True]
+    assert exit_requests == [True]
+
+
+def test_close_without_tray_requests_application_exit(window: LauncherWindow) -> None:
+    exit_requests: list[bool] = []
+    window.exit_requested.connect(lambda: exit_requests.append(True))
+    window.close()
+    assert not window.isVisible()
+    assert exit_requests == [True]
+
+
+def test_voice_panel_is_available_as_explicit_launcher_tab(qt_app, tmp_path) -> None:
+    panel = VoicePanel(tmp_path / "missing-model")
+    launcher = LauncherWindow(
+        lambda query: LauncherSearchResults(query, (), False),
+        lambda _result: None,
+        voice_panel=panel,
+    )
+    tabs = launcher.centralWidget()
+    assert tabs.count() == 2
+    assert tabs.tabText(1) == "Voice"
+    assert "Microphone is off" in panel.status_label.text()
+    assert panel.record_button.text() == "Record"
+    launcher.deleteLater()
+    qt_app.processEvents()
 
 
 def test_index_worker_runs_off_ui_connection_and_reports_completion(

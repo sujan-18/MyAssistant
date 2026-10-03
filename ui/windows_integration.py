@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QTimer, Signal
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMenu, QStyle, QSystemTrayIcon
 
 from system.windows import parse_hotkey
 from todo.service import TaskService
@@ -64,6 +64,7 @@ class WindowsIntegration(QObject):
         self.app = app
         self.task_service = task_service
         self.tray = QSystemTrayIcon(app)
+        self.tray.setIcon(app.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
         self.tray.setToolTip("MyAssistant")
         self.menu = QMenu()
         open_action = QAction("Open MyAssistant", self.menu)

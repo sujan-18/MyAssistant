@@ -70,3 +70,37 @@ def test_settings_reject_invalid_log_level(monkeypatch: pytest.MonkeyPatch) -> N
 
     with pytest.raises(ValueError, match="MYASSISTANT_LOG_LEVEL"):
         Settings.load()
+
+
+def test_windows_integration_settings_are_opt_in_and_configurable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("MYASSISTANT_START_WITH_WINDOWS", raising=False)
+    monkeypatch.delenv("MYASSISTANT_GLOBAL_HOTKEY", raising=False)
+    settings = Settings.load()
+    assert settings.start_with_windows is False
+    assert settings.global_hotkey == "Ctrl+Space"
+
+    monkeypatch.setenv("MYASSISTANT_START_WITH_WINDOWS", "yes")
+    monkeypatch.setenv("MYASSISTANT_GLOBAL_HOTKEY", "Ctrl+Alt+M")
+    settings = Settings.load()
+    assert settings.start_with_windows is True
+    assert settings.global_hotkey == "Ctrl+Alt+M"
+
+
+def test_settings_reject_invalid_startup_preference(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MYASSISTANT_START_WITH_WINDOWS", "sometimes")
+    with pytest.raises(ValueError, match="MYASSISTANT_START_WITH_WINDOWS"):
+        Settings.load()
+
+
+def test_speech_model_directory_override_must_be_absolute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_dir = tmp_path / "speech-models"
+    monkeypatch.setenv("MYASSISTANT_SPEECH_MODEL_DIR", str(model_dir))
+    assert Settings.load().speech_model_dir == model_dir.resolve()
+
+    monkeypatch.setenv("MYASSISTANT_SPEECH_MODEL_DIR", "relative-models")
+    with pytest.raises(ValueError, match="MYASSISTANT_SPEECH_MODEL_DIR"):
+        Settings.load()

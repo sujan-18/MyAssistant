@@ -50,12 +50,14 @@ class LauncherWindow(QMainWindow):
 
     result_activated = Signal(object)
     exit_requested = Signal()
+    hidden = Signal()
 
     def __init__(
         self,
         search_applications: Callable[[str], LauncherSearchResults],
         open_application: Callable[[LauncherItem], None],
         task_panel: QWidget | None = None,
+        voice_panel: QWidget | None = None,
     ) -> None:
         super().__init__()
         self._search_applications = search_applications
@@ -107,6 +109,8 @@ class LauncherWindow(QMainWindow):
         tabs.addTab(container, "Search")
         if task_panel is not None:
             tabs.addTab(task_panel, "Tasks")
+        if voice_panel is not None:
+            tabs.addTab(voice_panel, "Voice")
         self.setCentralWidget(tabs)
         self.setStyleSheet(
             """
@@ -217,11 +221,16 @@ class LauncherWindow(QMainWindow):
         self.match_notice.setText(text)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override name
-        event.ignore()
         if self._tray_available:
+            event.ignore()
             self.hide()
         else:
+            event.accept()
             self.exit_requested.emit()
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt override name
+        self.hidden.emit()
+        super().hideEvent(event)
 
 
 def create_application(argv: list[str] | None = None) -> QApplication:
